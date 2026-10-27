@@ -113,17 +113,31 @@ function schedule(){
 }
 document.addEventListener('visibilitychange', () => { if(!document.hidden){ clearTimeout(polling); poll(); } });
 
+// ---------- shared with the presenter: who sees which version, and option order ----------
+function hash(str){ let h=0; for(let i=0;i<str.length;i++){ h=(h*31+str.charCodeAt(i))|0; } return Math.abs(h); }
+function variantOf(cid, rid){ return hash(cid+'|'+rid) % 2; }
+function shuffled(n, seed){ const a=[...Array(n).keys()]; let x=hash(seed)||1; for(let i=n-1;i>0;i--){ x=(x*1103515245+12345)&0x7fffffff; const j=x%(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function seenAt(k){ const key='occ_seen_'+k; let t=+store(key); if(!t){ t=Date.now(); store(key,String(t)); } return t; }
+
 // ---------- views ----------
+let readTimer=null, tickTimer=null;
 function render(){
   if(!name){ if(renderedKey!=='join') renderJoin(); return; }
   const s = state || {status:'idle'};
   const ep = (s.epochs && s.round && s.epochs[s.round]) || 0;
-  const key = [s.round, s.status, ep, s.winnerName||''].join('|');
+  let phase='';
+  if(s.round && s.r && s.status==='open' && s.r.readSecs){
+    const left = seenAt(s.round+':'+ep) + s.r.readSecs*1000 - Date.now();
+    phase = left>0 ? 'read' : 'ans';
+    clearTimeout(readTimer); if(left>0) readTimer=setTimeout(render, left+50);
+  }
+  const key = [s.round, s.status, ep, s.winnerName||'', phase].join('|');
   if(key === renderedKey) return;
   renderedKey = key;
+  clearInterval(tickTimer);
   if(s.winnerName) return renderWinner(s);
-  if(!s.round || !s.r || s.status==='idle') return renderWait();
-  renderRound(s, ep);
+  if(!s.round || !s.r || s.status==='idle' || s.r.type==='recap') return renderWait();
+  renderRound(s, ep, phase);
 }
 
 function header(){
@@ -138,7 +152,7 @@ function renderJoin(){
   input.addEventListener('keydown', e => { if(e.key==='Enter') go(); });
   $view.replaceChildren(el('div',{class:'card'},
     el('h1',{text:'Join the challenge'}),
-    el('p',{class:'muted', style:'margin:0', text:'Your answers show up on the big screen. Your name is used for the prize.'}),
+    el('p',{class:'muted', style:'margin:0', text:'Your answers show up on the big screen without your name. Your name is only used for the prize.'}),
     el('label',{for:'name', class:'label', text:'Your name'}), input,
     el('button',{class:'btn', onclick:go}, 'Join')));
   setTimeout(()=>input.focus(), 50);
@@ -158,35 +172,53 @@ function renderWinner(s){
     el('p',{style:'margin:0', text:'Clear is kind.'})));
 }
 
-function msgCard(r){
-  return el('div',{class:'msg'}, el('div',{class:'av','aria-hidden':'true', text:initials(r.sender)}),
-    el('div',{style:'min-width:0'}, el('div',{}, el('b',{text:r.sender}), el('small',{text:r.time})), el('div',{class:'txt', text:r.message})));
+function msgCard(m){
+  return el('div',{class:'msg'}, el('div',{class:'av','aria-hidden':'true', text:initials(m.sender)}),
+    el('div',{style:'min-width:0'}, el('div',{}, el('b',{text:m.sender}), el('small',{text:m.time})), el('div',{class:'txt', text:m.message})));
 }
 
-function renderRound(s, ep){
+function renderRound(s, ep, phase){
   const r = s.r, k = s.round+':'+ep, mine = sent[k];
-  const card = el('div',{class:'card'});
-  $view.replaceChildren(header(), el('div',{class:'label', text:(r.day||'')+' · '+(r.short||'')}), el('div',{class:'card'}, msgCard(r)), card);
+  const variant = r.split ? variantOf(clientId, s.round) : null;
+  const m = r.split ? r.variants[variant] : (r.message ? r : null);
+  const kids = [header(), el('div',{class:'label', text:(r.day||'')+' · '+(r.short||'')})];
+  if(r.split) kids.push(el('p',{class:'muted', style:'margin:0;font-size:13px', text:"Don't show your neighbors. Some of them got a different message."}));
+  if(phase==='read'){
+    const left = el('b');
+    const upd = () => { const t=Math.max(0, Math.ceil((seenAt(k)+r.readSecs*1000-Date.now())/1000)); left.textContent = t+'s'; };
+    upd(); tickTimer=setInterval(upd, 250);
+    kids.push(el('div',{class:'row', style:'font-size:15px'}, el('span',{text:'Read this like a normal Slack message. It disappears in'}), left));
+    if(m) kids.push(el('div',{class:'card'}, msgCard(m)));
+    $view.replaceChildren(...kids);
+    return;
+  }
+  if(m && !r.readSecs) kids.push(el('div',{class:'card'}, msgCard(m)));
+  if(r.readSecs) kids.push(el('div',{class:'card muted', text:'The message is hidden now. Answer from memory.'}));
+  const card = el('div',{class:'card'}); kids.push(card);
+  $view.replaceChildren(...kids);
   if(s.status==='closed'){
     card.append(el('div',{class:'q', text:'Answers are closed'}),
       el('p',{class:'muted', style:'margin:0', text: mine ? 'Your answer is in. Watch the screen for results.' : 'This round has ended. Watch the screen for results.'}));
     return;
   }
   card.append(el('div',{class:'q', text:r.question}));
+  if(r.hint) card.append(el('p',{class:'muted', style:'margin:0', text:r.hint}));
   const status = el('div',{'aria-live':'polite'});
   if(r.type==='choice'){
     const box = el('div',{style:'display:grid;gap:10px'});
-    (r.options||[]).forEach((o,i)=> box.append(el('button',{class:'choice','aria-pressed':String(mine&&mine.choice===i), onclick:e=>{
+    const order = r.shuffle ? shuffled(r.options.length, clientId+'|'+s.round) : r.options.map((_,i)=>i);
+    order.forEach(i => { const o=r.options[i]; box.append(el('button',{class:'choice','aria-pressed':String(!!mine&&mine.choice===i), onclick:e=>{
       [...box.children].forEach(b=>b.setAttribute('aria-pressed','false')); e.currentTarget.setAttribute('aria-pressed','true');
       send(s, {choice:i, answer:o}, status, null);
-    }}, o)));
+    }}, o)); });
     card.append(box, status);
     if(mine) status.replaceChildren(el('div',{class:'ok', text:'Answer in. Tap another option to change it.'}));
   } else {
     const ta = el('textarea',{id:'ans', maxlength:String(r.max||600), placeholder: r.type==='contest' ? 'Your rewrite…' : 'Type your answer…'});
     ta.value = (mine && mine.answer) || '';
     const wc = el('span');
-    const upd = () => wc.textContent = words(ta.value)+' words'; ta.addEventListener('input', upd); upd();
+    const upd = () => { const n=words(ta.value); if(r.wordTarget){ wc.textContent = n+' / '+r.wordTarget+' words'; wc.style.color = n>r.wordTarget ? 'var(--bad)' : ''; wc.style.fontWeight = n>r.wordTarget ? '700' : ''; } else wc.textContent = n+' words'; };
+    ta.addEventListener('input', upd); upd();
     const btn = el('button',{class:'btn', onclick:()=>{ if(!ta.value.trim()){ ta.focus(); return; } send(s, {answer:ta.value.trim()}, status, btn); }}, mine ? 'Update answer' : 'Submit');
     if(r.type==='contest') card.append(el('div',{class:'chips'}, el('span',{text:'Mode'}), el('span',{text:'Ask'}), el('span',{text:'Date'}), el('span',{text:'One-tap reply'})));
     card.append(ta, el('div',{class:'row'}, wc, el('span',{text:'You can edit until the round closes'})), btn, status);
