@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Offsite Computational Challenge</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap">
+<style>
+:root{
+  --bg:#F3F7F9; --surface:#FFFFFF; --sunk:#E8F0F4; --ink:#12232E; --muted:#5B6E7A; --line:#D3DFE6;
+  --accent:#009FD9; --accent-ink:#FFFFFF; --accent-soft:#DDF2FB; --kind:#1F8A5B; --kind-soft:#E2F5EC; --bad:#C4473A; --bad-soft:#FBE9E6;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0D171D; --surface:#15232C; --sunk:#1C2E39; --ink:#E7F0F4; --muted:#93A8B4; --line:#2A3F4C;
+  --accent:#2BB5E8; --accent-ink:#06131A; --accent-soft:#123647; --kind:#4CC58C; --kind-soft:#12301F; --bad:#F07B6C; --bad-soft:#3A1C18; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.5;
+  padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left))}
+main{max-width:560px;margin:0 auto;display:grid;gap:16px}
+h1,h2{margin:0;line-height:1.2;text-wrap:balance}
+.top{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.brand{font-weight:800;font-size:15px;display:flex;align-items:center;gap:8px}
+.dots{display:flex;gap:4px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.who{font-size:13px;color:var(--muted)}
+.link{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;font-weight:600;padding:4px;cursor:pointer}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
+.label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.msg{display:grid;grid-template-columns:36px 1fr;gap:10px}
+.av{width:36px;height:36px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:13px}
+.msg b{font-weight:700}.msg small{color:var(--muted);margin-left:6px}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere}
+.q{font-weight:700;font-size:19px}
+input,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;background:var(--bg);color:var(--ink)}
+textarea{min-height:120px;resize:vertical}
+input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.btn{width:100%;border:0;border-radius:10px;padding:14px;font:inherit;font-weight:700;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn:disabled{opacity:.55}
+.choice{width:100%;text-align:left;border:2px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:16px;font:inherit;font-weight:700;cursor:pointer}
+.choice[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.ok{background:var(--kind-soft);color:var(--kind);border-radius:10px;padding:12px;font-weight:600}
+.err{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:12px;font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chips span{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--sunk)}
+.wait{text-align:center;padding:40px 8px;display:grid;gap:10px;justify-items:center}
+.bob{display:flex;gap:10px}.bob i{width:16px;height:16px;border-radius:50%;background:var(--accent);animation:b 1.6s ease-in-out infinite}
+.bob i:nth-child(2){animation-delay:.2s}.bob i:nth-child(3){animation-delay:.4s}
+@keyframes b{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@media (prefers-reduced-motion:reduce){.bob i{animation:none}}
+.winner{background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:28px 20px;text-align:center;display:grid;gap:6px}
+.winner .label{color:inherit;opacity:.85}
+.muted{color:var(--muted)}
+.net{font-size:12px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div class="brand"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>Offsite Computational Challenge</div>
+  </div>
+  <div id="view"></div>
+  <div id="net" class="net" aria-live="polite"></div>
+</main>
+
+<script>
+// Older phones: small polyfill
+if(!Element.prototype.replaceChildren){ Element.prototype.replaceChildren=function(){ while(this.firstChild) this.removeChild(this.firstChild); this.append.apply(this, arguments); }; }
+// ---------- identity (kept on this phone) ----------
+function store(k, v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }catch(e){ return null; } }
+let clientId = store('occ_id');
+if(!clientId || !/^[a-z0-9]{8,40}$/.test(clientId)){ clientId = (Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,20); store('occ_id', clientId); }
+let name = store('occ_name') || '';
+
+// ---------- state ----------
+let state = null, renderedKey = null, polling = null, failures = 0;
+const sent = {}; // "round:epoch" -> {answer, choice}
+const $view = document.getElementById('view');
+const $net = document.getElementById('net');
+
+function el(tag, attrs, ...kids){
+  const n = document.createElement(tag);
+  for(const k in (attrs||{})){ const v = attrs[k]; if(v==null||v===false) continue;
+    if(k==='class') n.className=v; else if(k==='text') n.textContent=v; else if(k.slice(0,2)==='on') n.addEventListener(k.slice(2), v); else n.setAttribute(k, v===true?'':v); }
+  kids.flat().forEach(c=>{ if(c!=null&&c!==false) n.append(c.nodeType?c:document.createTextNode(String(c))); });
+  return n;
+}
+const words = t => (t||'').trim().split(/\s+/).filter(Boolean).length;
+const initials = n => String(n||'').split(' ').map(x=>x[0]).join('').slice(0,2);
+
+// ---------- backend ----------
+const API = 'https://script.google.com/macros/s/AKfycbzfDCwUdKZFO58bzUPrhDLkkYbN6eOlKhe_HZwuDPaKatQDhQWg0Ac71oFi6xj6kGaiOw/exec';
+// No cookies are sent, so nobody's Google sign-in affects anything.
+function api(method, body){
+  const ctrl = ('AbortController' in window) ? new AbortController() : null;
+  const t = ctrl ? setTimeout(()=>ctrl.abort(), 15000) : null;
+  const opts = { method, credentials:'omit', cache:'no-store', redirect:'follow', signal: ctrl ? ctrl.signal : undefined };
+  if(body){ opts.body = JSON.stringify(body); opts.headers = {'Content-Type':'text/plain;charset=utf-8'}; }
+  const url = method==='GET' ? API + '?action=state&t=' + Date.now() : API;
+  return fetch(url, opts).then(r => { if(t) clearTimeout(t); if(!r.ok) throw new Error('http '+r.status); return r.json(); });
+}
+
+// ---------- polling ----------
+function poll(){
+  api('GET')
+    .then(s => { failures = 0; $net.textContent=''; if(s && typeof s==='object') state = s; render(); schedule(); })
+    .catch(() => { failures++; if(failures>2) $net.textContent='Reconnecting…'; schedule(); });
+}
+function schedule(){
+  clearTimeout(polling);
+  const base = document.hidden ? 10000 : 2500;
+  polling = setTimeout(poll, base + Math.random()*800 + Math.min(failures,5)*1000);
+}
+document.addEventListener('visibilitychange', () => { if(!document.hidden){ clearTimeout(polling); poll(); } });
+
+// ---------- views ----------
+function render(){
+  if(!name){ if(renderedKey!=='join') renderJoin(); return; }
+  const s = state || {status:'idle'};
+  const ep = (s.epochs && s.round && s.epochs[s.round]) || 0;
+  const key = [s.round, s.status, ep, s.winnerName||''].join('|');
+  if(key === renderedKey) return;
+  renderedKey = key;
+  if(s.winnerName) return renderWinner(s);
+  if(!s.round || !s.r || s.status==='idle') return renderWait();
+  renderRound(s, ep);
+}
+
+function header(){
+  return el('div',{class:'row'}, el('span',{class:'who', text:'Playing as '+name}),
+    el('button',{class:'link', onclick:()=>{ name=''; renderedKey=null; render(); }}, 'Change name'));
+}
+
+function renderJoin(){
+  renderedKey='join';
+  const input = el('input',{id:'name', autocomplete:'name', maxlength:'60', placeholder:'First and last name', value:store('occ_name')||''});
+  const go = () => { const v = input.value.trim(); if(v.length<2){ input.focus(); return; } name=v; store('occ_name', v); renderedKey=null; render(); };
+  input.addEventListener('keydown', e => { if(e.key==='Enter') go(); });
+  $view.replaceChildren(el('div',{class:'card'},
+    el('h1',{text:'Join the challenge'}),
+    el('p',{class:'muted', style:'margin:0', text:'Your answers show up on the big screen. Your name is used for the prize.'}),
+    el('label',{for:'name', class:'label', text:'Your name'}), input,
+    el('button',{class:'btn', onclick:go}, 'Join')));
+  setTimeout(()=>input.focus(), 50);
+}
+
+function renderWait(){
+  $view.replaceChildren(header(), el('div',{class:'wait'},
+    el('div',{class:'bob','aria-hidden':'true'}, el('i'), el('i'), el('i')),
+    el('h2',{text:"You're in"}),
+    el('p',{class:'muted', style:'margin:0', text:'Watch the screen. The next round opens here on its own.'})));
+}
+
+function renderWinner(s){
+  $view.replaceChildren(el('div',{class:'winner'},
+    el('div',{class:'label', text:'And the winner is'}),
+    el('h1',{text: s.winnerId===clientId ? 'You! 🎉' : s.winnerName}),
+    el('p',{style:'margin:0', text:'Clear is kind.'})));
+}
+
+function msgCard(r){
+  return el('div',{class:'msg'}, el('div',{class:'av','aria-hidden':'true', text:initials(r.sender)}),
+    el('div',{style:'min-width:0'}, el('div',{}, el('b',{text:r.sender}), el('small',{text:r.time})), el('div',{class:'txt', text:r.message})));
+}
+
+function renderRound(s, ep){
+  const r = s.r, k = s.round+':'+ep, mine = sent[k];
+  const card = el('div',{class:'card'});
+  $view.replaceChildren(header(), el('div',{class:'label', text:(r.day||'')+' · '+(r.short||'')}), el('div',{class:'card'}, msgCard(r)), card);
+  if(s.status==='closed'){
+    card.append(el('div',{class:'q', text:'Answers are closed'}),
+      el('p',{class:'muted', style:'margin:0', text: mine ? 'Your answer is in. Watch the screen for results.' : 'This round has ended. Watch the screen for results.'}));
+    return;
+  }
+  card.append(el('div',{class:'q', text:r.question}));
+  const status = el('div',{'aria-live':'polite'});
+  if(r.type==='choice'){
+    const box = el('div',{style:'display:grid;gap:10px'});
+    (r.options||[]).forEach((o,i)=> box.append(el('button',{class:'choice','aria-pressed':String(mine&&mine.choice===i), onclick:e=>{
+      [...box.children].forEach(b=>b.setAttribute('aria-pressed','false')); e.currentTarget.setAttribute('aria-pressed','true');
+      send(s, {choice:i, answer:o}, status, null);
+    }}, o)));
+    card.append(box, status);
+    if(mine) status.replaceChildren(el('div',{class:'ok', text:'Answer in. Tap another option to change it.'}));
+  } else {
+    const ta = el('textarea',{id:'ans', maxlength:String(r.max||600), placeholder: r.type==='contest' ? 'Your rewrite…' : 'Type your answer…'});
+    ta.value = (mine && mine.answer) || '';
+    const wc = el('span');
+    const upd = () => wc.textContent = words(ta.value)+' words'; ta.addEventListener('input', upd); upd();
+    const btn = el('button',{class:'btn', onclick:()=>{ if(!ta.value.trim()){ ta.focus(); return; } send(s, {answer:ta.value.trim()}, status, btn); }}, mine ? 'Update answer' : 'Submit');
+    if(r.type==='contest') card.append(el('div',{class:'chips'}, el('span',{text:'Mode'}), el('span',{text:'Ask'}), el('span',{text:'Date'}), el('span',{text:'One-tap reply'})));
+    card.append(ta, el('div',{class:'row'}, wc, el('span',{text:'You can edit until the round closes'})), btn, status);
+    if(mine) status.replaceChildren(el('div',{class:'ok', text:'Answer in. You can still edit it.'}));
+  }
+}
+
+function send(s, payload, status, btn){
+  const ep = (s.epochs && s.epochs[s.round]) || 0, k = s.round+':'+ep;
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  api('POST', Object.assign({clientId, name, round:s.round}, payload))
+    .then(res => {
+      if(btn){ btn.disabled=false; btn.textContent='Update answer'; }
+      if(res && res.ok){ sent[k] = payload; status.replaceChildren(el('div',{class:'ok', text: s.r.type==='choice' ? 'Answer in. Tap another option to change it.' : 'Answer in. You can still edit it.'})); }
+      else if(res && res.reason==='closed'){ status.replaceChildren(el('div',{class:'err', text:'Too late: this round just closed.'})); }
+      else if(res && res.reason==='stale'){ status.replaceChildren(el('div',{class:'err', text:'The round changed. Loading the new one…'})); renderedKey=null; poll(); }
+      else status.replaceChildren(el('div',{class:'err', text:'That didn’t save. Tap again.'}));
+    })
+    .catch(() => {
+      if(btn){ btn.disabled=false; btn.textContent='Try again'; }
+      status.replaceChildren(el('div',{class:'err', text:'No connection. Check your signal and tap again.'}));
+    });
+}
+
+render();
+poll();
+</script>
+</body>
+</html>
