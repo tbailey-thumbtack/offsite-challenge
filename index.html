@@ -215,14 +215,14 @@ function renderRound(s, ep, phase){
     if(mine) status.replaceChildren(el('div',{class:'ok', text:'Answer in. Tap another option to change it.'}));
   } else {
     const ta = el('textarea',{id:'ans', maxlength:String(r.max||600), placeholder: r.type==='contest' ? 'Your rewrite…' : 'Type your answer…'});
-    ta.value = (mine && mine.answer) || '';
+    ta.value = r.multi ? '' : ((mine && mine.answer) || '');
     const wc = el('span');
     const upd = () => { const n=words(ta.value); if(r.wordTarget){ wc.textContent = n+' / '+r.wordTarget+' words'; wc.style.color = n>r.wordTarget ? 'var(--bad)' : ''; wc.style.fontWeight = n>r.wordTarget ? '700' : ''; } else wc.textContent = n+' words'; };
     ta.addEventListener('input', upd); upd();
-    const btn = el('button',{class:'btn', onclick:()=>{ if(!ta.value.trim()){ ta.focus(); return; } send(s, {answer:ta.value.trim()}, status, btn); }}, mine ? 'Update answer' : 'Submit');
+    const btn = el('button',{class:'btn', onclick:()=>{ if(!ta.value.trim()){ ta.focus(); return; } if(r.multi && sent[k] && sent[k].n>=5){ status.replaceChildren(el('div',{class:'ok', text:'That’s 5. Thanks! Watch the screen.'})); return; } send(s, {answer:ta.value.trim()}, status, btn); }}, r.multi ? (mine ? 'Send another' : 'Send') : (mine ? 'Update answer' : 'Submit'));
     if(r.type==='contest') card.append(el('div',{class:'chips'}, el('span',{text:'Mode'}), el('span',{text:'Ask'}), el('span',{text:'Date'}), el('span',{text:'One-tap reply'})));
-    card.append(ta, el('div',{class:'row'}, wc, el('span',{text:'You can edit until the round closes'})), btn, status);
-    if(mine) status.replaceChildren(el('div',{class:'ok', text:'Answer in. You can still edit it.'}));
+    card.append(ta, el('div',{class:'row'}, wc, el('span',{text: r.multi ? 'Send up to 5' : 'You can edit until the round closes'})), btn, status);
+    if(mine) status.replaceChildren(el('div',{class:'ok', text: r.multi ? ('Sent '+mine.n+'. Add another if you have one.') : 'Answer in. You can still edit it.'}));
   }
 }
 
@@ -231,8 +231,13 @@ function send(s, payload, status, btn){
   if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
   api('POST', Object.assign({clientId, name, round:s.round}, payload))
     .then(res => {
-      if(btn){ btn.disabled=false; btn.textContent='Update answer'; }
-      if(res && res.ok){ sent[k] = payload; status.replaceChildren(el('div',{class:'ok', text: s.r.type==='choice' ? 'Answer in. Tap another option to change it.' : 'Answer in. You can still edit it.'})); }
+      if(btn){ btn.disabled=false; btn.textContent = s.r.multi ? 'Send another' : 'Update answer'; }
+      if(res && res.ok && s.r.multi){
+        const n=((sent[k]&&sent[k].n)||0)+1; sent[k]={n};
+        const ta=document.getElementById('ans'); if(ta){ ta.value=''; ta.dispatchEvent(new Event('input')); ta.focus(); }
+        status.replaceChildren(el('div',{class:'ok', text: n>=5 ? 'That’s 5. Thanks! Watch the screen.' : 'Sent '+n+'. Add another if you have one.'}));
+      }
+      else if(res && res.ok){ sent[k] = payload; status.replaceChildren(el('div',{class:'ok', text: s.r.type==='choice' ? 'Answer in. Tap another option to change it.' : 'Answer in. You can still edit it.'})); }
       else if(res && res.reason==='closed'){ status.replaceChildren(el('div',{class:'err', text:'Too late: this round just closed.'})); }
       else if(res && res.reason==='stale'){ status.replaceChildren(el('div',{class:'err', text:'The round changed. Loading the new one…'})); renderedKey=null; poll(); }
       else status.replaceChildren(el('div',{class:'err', text:'That didn’t save. Tap again.'}));
