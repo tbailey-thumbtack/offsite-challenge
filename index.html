@@ -52,6 +52,7 @@ input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--accent);
 .winner .label{color:inherit;opacity:.85}
 .muted{color:var(--muted)}
 .net{font-size:12px;color:var(--muted);text-align:center}
+.orig{max-height:38vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--bg)}
 </style>
 </head>
 <body>
@@ -152,7 +153,7 @@ function renderJoin(){
   input.addEventListener('keydown', e => { if(e.key==='Enter') go(); });
   $view.replaceChildren(el('div',{class:'card'},
     el('h1',{text:'Join the challenge'}),
-    el('p',{class:'muted', style:'margin:0', text:'Your answers show up on the big screen without your name. Your name is only used for the prize.'}),
+    el('p',{class:'muted', style:'margin:0', text:'Your answers show up on the big screen without your name. Your name is only shown if you win the prize.'}),
     el('label',{for:'name', class:'label', text:'Your name'}), input,
     el('button',{class:'btn', onclick:go}, 'Join')));
   setTimeout(()=>input.focus(), 50);
@@ -182,7 +183,7 @@ function renderRound(s, ep, phase){
   const variant = r.split ? variantOf(clientId, s.round) : null;
   const m = r.split ? r.variants[variant] : (r.message ? r : null);
   const kids = [header(), el('div',{class:'label', text:(r.day||'')+' · '+(r.short||'')})];
-  if(r.split) kids.push(el('p',{class:'muted', style:'margin:0;font-size:13px', text:"Don't show your neighbors. Some of them got a different message."}));
+  if(r.split) kids.push(el('p',{class:'muted', style:'margin:0;font-size:13px', text:'Keep your eyes on your own phone.'}));
   if(phase==='read'){
     const left = el('b');
     const upd = () => { const t=Math.max(0, Math.ceil((seenAt(k)+r.readSecs*1000-Date.now())/1000)); left.textContent = t+'s'; };
@@ -192,7 +193,7 @@ function renderRound(s, ep, phase){
     $view.replaceChildren(...kids);
     return;
   }
-  if(m && !r.readSecs) kids.push(el('div',{class:'card'}, msgCard(m)));
+  if(m && !r.readSecs && r.type!=='contest') kids.push(el('div',{class:'card'}, msgCard(m)));
   if(r.readSecs) kids.push(el('div',{class:'card muted', text:'The message is hidden now. Answer from memory.'}));
   const card = el('div',{class:'card'}); kids.push(card);
   $view.replaceChildren(...kids);
@@ -220,6 +221,12 @@ function renderRound(s, ep, phase){
     const upd = () => { const n=words(ta.value); if(r.wordTarget){ const pen = n<=r.wordTarget ? 0 : Math.ceil((n-r.wordTarget)/(r.penaltyEvery||15)); wc.textContent = n+' / '+r.wordTarget+' words'+(pen ? ' · −'+pen+(pen===1?' point':' points') : ''); wc.style.color = pen>=2 ? 'var(--bad)' : ''; wc.style.fontWeight = pen ? '700' : ''; } else wc.textContent = n+' words'; };
     ta.addEventListener('input', upd); upd();
     const btn = el('button',{class:'btn', onclick:()=>{ if(!ta.value.trim()){ ta.focus(); return; } if(r.multi && sent[k] && sent[k].n>=5){ status.replaceChildren(el('div',{class:'ok', text:'That’s 5. Thanks! Watch the screen.'})); return; } send(s, {answer:ta.value.trim()}, status, btn); }}, r.multi ? (mine ? 'Send another' : 'Send') : (mine ? 'Update answer' : 'Submit'));
+    if(r.type==='contest' && m){
+      // keep the original one tap away while typing
+      const box = el('div',{class:'orig'}, msgCard(m));
+      const tog = el('button',{class:'link', style:'justify-self:start;padding:0', 'aria-expanded':'true', onclick:()=>{ box.hidden=!box.hidden; tog.textContent = box.hidden ? 'Show the original' : 'Hide the original'; tog.setAttribute('aria-expanded', String(!box.hidden)); }}, 'Hide the original');
+      card.append(tog, box);
+    }
     if(r.type==='contest') card.append(el('div',{class:'chips'}, el('span',{text:'Mode'}), el('span',{text:'Ask'}), el('span',{text:'Date'}), el('span',{text:'One-tap reply'})));
     card.append(ta, el('div',{class:'row'}, wc, el('span',{text: r.multi ? 'Send up to 5' : 'You can edit until the round closes'})), btn, status);
     if(mine) status.replaceChildren(el('div',{class:'ok', text: r.multi ? ('Sent '+mine.n+'. Add another if you have one.') : 'Answer in. You can still edit it.'}));
