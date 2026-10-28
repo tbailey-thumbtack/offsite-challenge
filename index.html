@@ -217,7 +217,7 @@ function renderRound(s, ep, phase){
     const ta = el('textarea',{id:'ans', maxlength:String(r.max||600), placeholder: r.type==='contest' ? 'Your rewrite…' : 'Type your answer…'});
     ta.value = r.multi ? '' : ((mine && mine.answer) || '');
     const wc = el('span');
-    const upd = () => { const n=words(ta.value); if(r.wordTarget){ wc.textContent = n+' / '+r.wordTarget+' words'; wc.style.color = n>r.wordTarget ? 'var(--bad)' : ''; wc.style.fontWeight = n>r.wordTarget ? '700' : ''; } else wc.textContent = n+' words'; };
+    const upd = () => { const n=words(ta.value); if(r.wordTarget){ wc.textContent = n+' / '+r.wordTarget+' words'+(n>r.wordTarget ? ' · a bit over is OK' : ''); wc.style.color = n>r.wordTarget+15 ? 'var(--bad)' : ''; wc.style.fontWeight = n>r.wordTarget ? '700' : ''; } else wc.textContent = n+' words'; };
     ta.addEventListener('input', upd); upd();
     const btn = el('button',{class:'btn', onclick:()=>{ if(!ta.value.trim()){ ta.focus(); return; } if(r.multi && sent[k] && sent[k].n>=5){ status.replaceChildren(el('div',{class:'ok', text:'That’s 5. Thanks! Watch the screen.'})); return; } send(s, {answer:ta.value.trim()}, status, btn); }}, r.multi ? (mine ? 'Send another' : 'Send') : (mine ? 'Update answer' : 'Submit'));
     if(r.type==='contest') card.append(el('div',{class:'chips'}, el('span',{text:'Mode'}), el('span',{text:'Ask'}), el('span',{text:'Date'}), el('span',{text:'One-tap reply'})));
